@@ -1,0 +1,29 @@
+---
+title: "R markdown with rCharts Demo"
+author: "Alex Deng"
+date: "Monday, October 13, 2014"
+output: html_document
+---
+
+
+#nvd3
+```{r results="asis"}
+library(rCharts)
+hair_eye = as.data.frame(HairEyeColor)
+p2 <- nPlot(Freq ~ Hair, group = 'Eye', data = subset(hair_eye, Sex == "Female"), type = 'multiBarChart')
+p2$chart(color = c('brown', 'blue', '#594c26', 'green'))
+p2$show('inline', include_assets = TRUE, cdn = TRUE)
+```
+
+#poly charts
+```{r results="asis"}
+p3 = rPlot(Freq ~ Hair | Eye, color = 'Eye', data = hair_eye, type = 'bar')
+p3$show('inline', include_assets = TRUE, cdn = TRUE)
+```
+
+# High charts
+```{r results="asis"}
+h1 <- hPlot(x = "Wr.Hnd", y = "NW.Hnd", data = MASS::survey, type = c("line", 
+    "bubble", "scatter"), group = "Clap", size = "Age")
+h1$show('inline', include_assets = TRUE, cdn = TRUE)
+```

@@ -1,0 +1,96 @@
+---
+title: "Avocado + R Markdown"
+author: "Alex Deng"
+date: "Monday, October 13, 2014"
+output: html_document
+---
+  
+## This is a demo of Avocado intergrated with the power of R via opencpu. The data is using cost of experiment monitoring which compares holdout group to experimentation group for several key metrics over about 2 years.
+  
+We first set up R by importing some packages. 
+```{r echo=FALSE, message=FALSE, error=FALSE, warning=FALSE}
+library(ggplot2)
+library(scales)
+library(pander)
+library(data.table)
+avocadoData = list()
+avocadoData$data = read.csv('expcost.csv',stringsAsFactors=F)
+```
+
+Next we take a quick look at the schema of our data. The data is called avocadoData which is result of an avocado query in this avocado report. The data as well as this R markdown script are posted to opencpu to render a R Markdown Report.
+```{r echo=TRUE}
+names(avocadoData)
+head(avocadoData$data)
+summary(avocadoData$data)
+```
+
+Transform the data with for plotting
+```{r}
+library(lubridate)
+metricData = data.table(with(avocadoData$data, data.frame(time=mdy_hms(AnalysisDate),metric=Metric, exp=TAvg, expCount=TN,  holdout=CAvg, holdoutCount=CN, delta=Delta, sd=Delta_SE, pdelta=PercentDelta, psd=PercentDelta_SE,stringsAsFactors=FALSE)))
+
+threshmap = data.table(data.frame(metric=c('DsQ/UU','OverallPCR','OverallPLT','PLT75th','Revenue/UU','Sessions/UU','SessionSuccessRate'),threshold = c(-0.002,-0.002,0.04,0.04,0,-0.001,-0.004),reverse=c(FALSE,FALSE,TRUE,TRUE,FALSE,FALSE,FALSE),stringsAsFactors = FALSE))
+setkey(threshmap,metric)
+setkey(metricData,metric)
+metricData = merge(metricData,threshmap)
+## evaluation of the movement
+# reversed case
+metricData[,evaluation:=ifelse(reverse,ifelse(pdelta>threshold+1.96*psd,-1,ifelse(pdelta<(-1.96)*psd,1,0)),0)]
+# not reversed case
+metricData[,evaluation:=ifelse(!reverse,ifelse(pdelta>1.96*psd,1,ifelse(pdelta<threshold+(-1.96)*psd,-1,0)),evaluation)]
+metricData[,evaluation:=factor(c(1,0,-1,evaluation),labels=c("Bad","Neutral","Good"))[-(1:3)]]
+
+metricData[,time:=as.Date(time)]
+```
+
+User ggplot for nice plot
+
+```{r echo=FALSE}
+
+plotPDelta <- function(Data,title,start,end,threshold=0, xlabBreaks = "2 days", plotCI = TRUE, XaxisWeekly = FALSE){
+  threshold  <- data.frame(threshold=threshold)
+  if(XaxisWeekly) {
+    Data = subset(Data, weekdays(time)=="Sunday")
+    xlabBreaks = "weeks"
+  }
+  p <- ggplot(aes(x=time,y=pdelta,color=evaluation),data=Data)+geom_point(aes(shape=evaluation),size=4)+geom_hline(yintercept=0)+scale_x_date("Date",breaks = date_breaks(xlabBreaks),minor_breaks = "1 day",labels = date_format("%m/%d/%y"),limits=c(as.Date(start),as.Date(end)))+scale_color_manual(values=c("Bad"="red","Neutral"="blue","Good"="green"))+geom_line(aes(x=time,y=pdelta),inherit.aes=FALSE,data=Data)+geom_hline(aes(yintercept=threshold),data=threshold,color="red")+scale_y_continuous("Percent delta",label=percent)
+ p <- p+labs(title=title)+theme(plot.title=element_text(face="bold",size=20),axis.text.x=element_text(angle=-90)) 
+  if(plotCI)
+    p <- p+geom_errorbar(aes(ymin=pdelta-1.96*psd, ymax=pdelta+1.96*psd))
+  p
+}
+
+
+plotValue <- function(Data,title,start,end, xlabBreaks = "2 days", XaxisWeekly = FALSE){
+  plot.data <- melt(Data[,c(1,2,4)],id="time")
+  if(XaxisWeekly) {
+    plot.data = subset(plot.data, weekdays(time)=="Sunday")
+    xlabBreaks = "weeks"
+  }
+  colnames(plot.data)[2]="Group"
+  p  <- qplot(x=time,y=value,color=Group,shape=Group,data=plot.data,geom="line",ylab='Metric Value')+scale_x_date("Date",breaks = date_breaks(xlabBreaks),minor_breaks = "1 day",labels = date_format("%m/%d/%y"),limits=c(as.Date(start),as.Date(end)))+labs(title=title)+theme(plot.title=element_text(face="bold",size=20),axis.text.x=element_text(angle=-90)) 
+  p
+}
+
+plotCount <- function(Data,title,start,end, xlabBreaks = "2 days", XaxisWeekly = FALSE){
+  Data  <-  Data[,c(1,3,5)]
+  Data$holdoutCount <- Data$holdoutCount/10
+  Data$expCount <- Data$expCount/90
+  plot.data <- melt(Data,id="time")
+  colnames(plot.data)[2]="Group"
+  if(XaxisWeekly) {
+    plot.data = subset(plot.data, weekdays(time)=="Sunday")
+    xlabBreaks = "weeks"
+  }  
+  p  <- qplot(x=time,y=value,color=Group,shape=Group,data=plot.data,geom="line",ylab='MUID Count Per 1% Traffic')+scale_x_date("Date",breaks = date_breaks(xlabBreaks),labels = date_format("%m/%d/%y"),limits=c(as.Date(start),as.Date(end)))+labs(title=title)+theme(plot.title=element_text(face="bold",size=20),axis.text.x=element_text(angle=-90)) 
+  p
+}
+```
+
+Use ggplot for nice plot. The daily cost of experiment for metric overall PLT for September, 2014. 
+
+```{r}
+metric = 'OverallPLT'
+plotPDelta(metricData[metric],metric,'2014-09-01','2014-10-10',0.04,XaxisWeekly = FALSE)
+
+```
