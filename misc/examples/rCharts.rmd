@@ -5,8 +5,22 @@ date: "Monday, October 13, 2014"
 output: html_document
 ---
 
+###nvd3 line chart for metric percentage delta. HAven't figure out how to prettify xAxis. It should be date instead of integer
 
-#nvd3
+```{r results="asis"}
+library(rCharts)
+library(data.table)
+plotdata = data.table(avocadoData$data)
+setkey(plotdata,AnalysisDate) #setkey and sort
+plotdata = plotdata[,AnalysisDate := as.Date(AnalysisDate)]
+subdata = plotdata[AnalysisDate>as.Date('2014-07-01')]
+#names(plotdata)
+p2 <- nPlot(PercentDelta ~ AnalysisDate, group = 'Metric', data = subdata, type = 'lineChart')
+p2$show('inline', include_assets = TRUE, cdn = TRUE)
+```
+
+
+###nvd3
 ```{r results="asis"}
 library(rCharts)
 hair_eye = as.data.frame(HairEyeColor)
@@ -15,13 +29,13 @@ p2$chart(color = c('brown', 'blue', '#594c26', 'green'))
 p2$show('inline', include_assets = TRUE, cdn = TRUE)
 ```
 
-#poly charts
+###poly charts
 ```{r results="asis"}
 p3 = rPlot(Freq ~ Hair | Eye, color = 'Eye', data = hair_eye, type = 'bar')
 p3$show('inline', include_assets = TRUE, cdn = TRUE)
 ```
 
-# High charts
+### High charts
 ```{r results="asis"}
 h1 <- hPlot(x = "Wr.Hnd", y = "NW.Hnd", data = MASS::survey, type = c("line", 
     "bubble", "scatter"), group = "Clap", size = "Age")
